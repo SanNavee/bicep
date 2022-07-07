@@ -1,0 +1,32 @@
+pool:
+  name: Hosted VS2017
+  demands: azureps
+
+steps:
+
+- task: AzureResourceGroupDeployment@2
+  inputs:
+    azureSubscription: 'LN VF Ng'
+    action: 'Create Or Update Resource Group'
+    resourceGroupName: 'ng_$(environmentName)'
+    location: '$(Location)'
+    templateLocation: 'Linked artifact'
+    csmFile: 'AzARMTemplates/NgMain.json'
+    csmParametersFile: 'AzARMTemplates/NextGenFull.parameters.json'
+    overrideParameters: |
+      -clientName $(clientName)  
+      -environmentName $(environmentName)  
+      -azureAdminObjectId $(azureAdminObjectId)  
+      -vfRestApiClientId $(vfRestApiClientId)  
+      -msGraphVersion $(msGraphVersion)  
+      -vfRestApiResourceIdentifier $(vfRestApiResourceIdentifier)  
+      -vfHybridConnectionHost $(vfHybridConnectionHost)  
+      -vfHybridConnectionPort $(vfHybridConnectionPort)  
+      -webAppClientId $(webAppClientId)  
+      -webAppClientSecret "$(webAppClientSecret)"  
+      -addinsAppClientId $(addinsAppClientId)  
+      -addinsAppClientSecret "$(addinsAppClientSecret)"  
+      -configurePowerBI $(configurePowerBI)  
+      -deployWebApp $(deployWebApp)  
+      -deployAddinsApp $(deployAddinsApp)
+    deploymentMode: 'Incremental'

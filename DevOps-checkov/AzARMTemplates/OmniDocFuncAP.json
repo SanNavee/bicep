@@ -1,0 +1,30 @@
+{
+	"$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"docAppFuncName": {
+			"type": "String"
+		},
+		"keyVaultName": {
+			"type": "string"
+		}
+	},
+	"resources": [
+		{
+			"type": "Microsoft.KeyVault/vaults/accessPolicies",
+			"name": "[concat(parameters('keyVaultName'), '/add')]",
+			"apiVersion": "2016-10-01",
+			"properties": {
+				"accessPolicies": [
+					{
+						"objectId": "[reference(concat('Microsoft.Web/sites/', parameters('docAppFuncName')),'2019-08-01', 'full').identity.principalId]", // "[reference(concat(resourceId('Microsoft.Web/sites', parameters('docAppFuncName')), '/providers/Microsoft.ManagedIdentity/Identities/default'), '2018-11-30').principalId]", //Web App Access
+						"tenantId": "[subscription().tenantid]",
+						"permissions": {
+							"secrets": ["get", "list"]
+						}
+					}
+				]
+			}
+		}
+	]
+}

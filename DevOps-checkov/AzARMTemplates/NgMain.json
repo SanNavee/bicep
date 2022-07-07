@@ -1,0 +1,526 @@
+﻿{
+	"$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"environmentName": {
+			"type": "string",
+			"minLength": 1
+		},
+		"locationAbbreviation": {
+			"type": "string",
+			"minLength": 1,
+			"defaultValue": "uks"
+		},
+		"instance": {
+			"type": "string",
+			"minLength": 3,
+			"defaultValue": "001"
+		},
+		"skuName": {
+			"type": "string",
+			"defaultValue": "B1",
+			"allowedValues": [
+				"F1",
+				"D1",
+				"B1",
+				"B2",
+				"B3",
+				"S1",
+				"S2",
+				"S3",
+				"P1",
+				"P2",
+				"P3",
+				"P4"
+			],
+			"metadata": {
+				"description": "Describes plan's pricing tier and capacity. Check details at https://azure.microsoft.com/en-us/pricing/details/app-service/"
+			}
+		},
+		"skuCapacity": {
+			"type": "int",
+			"defaultValue": 1,
+			"minValue": 1,
+			"metadata": {
+				"description": "Describes plan's instance count"
+			}
+		},
+		"omniAppsStorageType": {
+			"type": "string",
+			"defaultValue": "Standard_LRS",
+			"allowedValues": [
+				"Standard_LRS",
+				"Standard_ZRS",
+				"Standard_GRS",
+				"Standard_RAGRS",
+				"Premium_LRS"
+			]
+		},
+
+		"omniAppsDomainName": {
+			"type": "string",
+			"minLength": 3,
+			"metadata": {
+				"description": "The Domain name where the apps are registered"
+			}
+		},
+		"everyFileClientId": {
+			"type": "string",
+			"defaultValue": "",
+			"metadata": {
+				"description": "EveryFile Client Id"
+			}
+		},
+		"everyFileClientSecret": {
+			"type": "string",
+			"defaultValue": "",
+			"metadata": {
+				"description": "EveryFile Client Secret"
+			}
+		},
+		"omniCoreApiClientId": {
+			"type": "string",
+			"defaultValue": "",
+			"metadata": {
+				"description": "Omni Core API Client Id"
+			}
+		},
+		"omniCoreApiResourceIdentifier": {
+			"type": "string",
+			"minLength": 3,
+			"metadata": {
+				"description": "Identifier of the Omni Core API resource defined in it's Azure AD App Registration"
+			}
+		},
+		"omniCoreApiHybridConnectionHost": {
+			"type": "string",
+			"minLength": 1,
+			"metadata": {
+				"description": "Uri of the Omni Core AppServer Resource for the HCM to use"
+			}
+		},
+		"omniCoreApiHybridConnectionPort": {
+			"type": "int",
+			"metadata": {
+				"description": "Port Number of the  Omni Core AppServer Resource for the HCM to use"
+			}
+		},
+		// "companionClientId": {
+		//   "type": "string",
+		//   "defaultValue": "",
+		//   "metadata": {
+		//     "description": "Companion Client Id"
+		//   }
+		// },
+		// "companionClientSecret": {
+		//   "type": "string",
+		//   "defaultValue": "",
+		//   "metadata": {
+		//     "description": "Companion Client Secret"
+		//   }
+		// },
+		"azureAdminObjectId": {
+			"type": "string",
+			"metadata": {
+				"description": "Admin Object ID used for permission grant of KeyVault Secrets"
+			}
+		},
+		"msGraphVersion": {
+			"type": "string",
+			"defaultValue": "beta",
+			"metadata": {
+				"description": "MS Graph API version"
+			}
+		},
+		"configurePowerBI": {
+			"type": "bool",
+			"defaultValue": false,
+			"metadata": {
+				"description": "Whether to include the PowerBI configuration in EveryFile"
+			}
+		},
+		"configureIManage": {
+			"type": "bool",
+			"defaultValue": false,
+			"metadata": {
+				"description": "Whether to include the iManage configuration in Everyfile"
+			}
+		},
+		"iManageEndpoint": {
+			"type": "string",
+			"metadata": {
+				"description": "Endpoint of the iManage resource"
+			}
+		},
+		"iManageClientCodeField": {
+			"type": "string",
+			"metadata": {
+				"description": "Visualfiles identified Client Code used for mapping the iManage workspace"
+			}
+		},
+		"iManageMatterCodeField": {
+			"type": "string",
+			"metadata": {
+				"description": "Visualfiles identified Matter Code used for mapping the iManage workspace"
+			}
+		},
+		"iManageEveryfileClientId": {
+			"type": "string",
+			"metadata": {
+				"description": "Client Id issued by iManage when Everyfile was registered"
+			}
+		},
+		"iManageEveryfileClientSecret": {
+			"type": "string",
+			"metadata": {
+				"description": "Client Secret issued by iManage when Everyfile was registered"
+			}
+		}
+	},
+	"variables": {
+		"everyFileAppName": "[concat('app-ef-', parameters('environmentName'), '-', parameters('locationAbbreviation'), '-', parameters('instance'))]",
+		// "companionName": "[concat('ocom', variables('checkedName'))]",
+		"omniCoreApiName": "[concat('api-core-', parameters('environmentName'), '-', parameters('locationAbbreviation'), '-', parameters('instance'))]",
+		"omniAppsStorageName": "[concat('stefdata', parameters('environmentName'), parameters('locationAbbreviation'), parameters('instance'))]",
+		"omniAppsKeyVaultName": "[concat('kv-ef-', parameters('environmentName'), '-', parameters('locationAbbreviation'), '-', parameters('instance'))]",
+		"hostingPlanName": "[concat('plan-ef-', parameters('environmentName'), '-', parameters('locationAbbreviation'), '-', parameters('instance'))]",
+		"docFuncAppName": "[concat('func-ef-doc-', parameters('environmentName'), '-', parameters('locationAbbreviation'), '-', parameters('instance'))]",
+		"docFuncAppInsightsName": "[concat('appi-func-ef-doc-', parameters('environmentName'), '-', parameters('locationAbbreviation'), '-', parameters('instance'))]"
+	},
+	"resources": [
+		{
+			"apiVersion": "2018-02-01",
+			"name": "[variables('hostingPlanName')]",
+			"type": "Microsoft.Web/serverfarms",
+			"location": "[resourceGroup().location]",
+			"dependsOn": [
+				"[concat('Microsoft.Resources/deployments/', 'DocumentFunctionAppDeployment')]"
+			],
+			"tags": {
+				"product": "Lexis Omni"
+			},
+			"sku": {
+				"name": "[parameters('skuName')]",
+				"capacity": "[parameters('skuCapacity')]"
+			},
+			"properties": {
+				"name": "[variables('hostingPlanName')]"
+			}
+		},
+		{
+			"name": "[variables('omniAppsStorageName')]",
+			"type": "Microsoft.Storage/storageAccounts",
+			"location": "[resourceGroup().location]",
+			"apiVersion": "2018-07-01",
+			"sku": {
+				"name": "[parameters('omniAppsStorageType')]"
+			},
+			"dependsOn": [],
+			"tags": {
+				"product": "Lexis Omni"
+			},
+			"kind": "StorageV2",
+			"properties": {
+				"supportsHttpsTrafficOnly": true
+			}
+		},
+
+		{
+			"type": "Microsoft.KeyVault/vaults",
+			"name": "[variables('omniAppsKeyVaultName')]",
+			"location": "[resourceGroup().location]",
+			"apiVersion": "2018-02-14",
+			"tags": {
+				"product": "Lexis Omni"
+			},
+			"properties": {
+				"enabledForDeployment": false,
+				"enabledForTemplateDeployment": false,
+				"enabledForDiskEncryption": true,
+				"tenantId": "[subscription().tenantId]",
+				"accessPolicies": [
+					{
+						"objectId": "[parameters('azureAdminObjectId')]",
+						"tenantId": "[subscription().tenantId]",
+						"permissions": {
+							"secrets": [
+								"get",
+								"list",
+								"set",
+								"delete",
+								"backup",
+								"restore",
+								"recover",
+								"purge"
+							]
+						}
+					}
+				],
+				"sku": {
+					"name": "Standard",
+					"family": "A"
+				},
+				"networkAcls": {
+					"value": {
+						"defaultAction": "Allow",
+						"bypass": "AzureServices"
+					}
+				}
+			}
+		},
+		{
+			"type": "Microsoft.KeyVault/vaults/secrets",
+			"name": "[concat(variables('omniAppsKeyVaultName'), '/StorageConnectionString')]",
+			"apiVersion": "2016-10-01",
+			"tags": {
+				"displayName": "KeyVault Secrets - Storage Account",
+				"product": "Lexis Omni"
+			},
+			"dependsOn": [
+				"[concat('Microsoft.KeyVault/vaults/', variables('omniAppsKeyVaultName'))]",
+				"[concat('Microsoft.Storage/storageAccounts/', variables('omniAppsStorageName'))]"
+			],
+			"properties": {
+				"value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('omniAppsStorageName'),';AccountKey=', listKeys(resourceId('Microsoft.Storage/storageAccounts/',  variables('omniAppsStorageName')), '2018-07-01').keys[0].value, ';EndpointSuffix=core.windows.net')]",
+				"contentType": "text/plain"
+			}
+		},
+		{
+			"type": "Microsoft.Resources/deployments",
+			"apiVersion": "2018-05-01",
+			"name": "OmniCoreApiDeployment",
+			"dependsOn": [
+				"[concat('Microsoft.KeyVault/vaults/', variables('omniAppsKeyVaultName'))]",
+				"[concat('Microsoft.Storage/storageAccounts/', variables('omniAppsStorageName'))]",
+				"[if(bool(parameters('configureIManage')), concat('Microsoft.Resources/deployments/', 'DocumentFunctionAppDeployment'), concat('Microsoft.Storage/storageAccounts/', variables('omniAppsStorageName')))]"
+			],
+			"properties": {
+				"mode": "Incremental",
+				"templateLink": {
+					"uri": "https://ngdevops.blob.core.windows.net/ngarmtemplates/v4/NgVFRestAPI.json",
+					"contentVersion": "1.0.0.0"
+				},
+				"parameters": {
+					"environmentName": { "value": "[parameters('environmentName')]" },
+					"locationAbbreviation": {
+						"value": "[parameters('locationAbbreviation')]"
+					},
+					"instance": { "value": "[parameters('instance')]" },
+					"hostingPlanName": { "value": "[variables('hostingPlanName')]" },
+					"omniCoreApiName": { "value": "[variables('omniCoreApiName')]" },
+					"omniCoreApiClientId": {
+						"value": "[parameters('omniCoreApiClientId')]"
+					},
+					"omniCoreApiResourceIdentifier": {
+						"value": "[parameters('omniCoreApiResourceIdentifier')]"
+					},
+					"omniCoreApiHybridConnectionHost": {
+						"value": "[parameters('omniCoreApiHybridConnectionHost')]"
+					},
+					"omniCoreApiHybridConnectionPort": {
+						"value": "[parameters('omniCoreApiHybridConnectionPort')]"
+					},
+					"omniAppsStorageConnectionString": {
+						"value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('omniAppsStorageName'),';AccountKey=', listKeys(resourceId('Microsoft.Storage/storageAccounts/',  variables('omniAppsStorageName')), '2018-07-01').keys[0].value)]"
+					},
+					"omniCoreAppsKeyVaultName": {
+						"value": "[variables('omniAppsKeyVaultName')]"
+					}
+				}
+			}
+		},
+		{
+			"type": "Microsoft.Resources/deployments",
+			"apiVersion": "2018-05-01",
+			"name": "EveryFileDeployment",
+			"dependsOn": [
+				"[concat('Microsoft.KeyVault/vaults/', variables('omniAppsKeyVaultName'))]",
+				"[concat('Microsoft.Storage/storageAccounts/', variables('omniAppsStorageName'))]",
+				"[if(bool(parameters('configureIManage')), concat('Microsoft.Resources/deployments/', 'DocumentFunctionAppDeployment'), concat('Microsoft.Storage/storageAccounts/', variables('omniAppsStorageName')))]"
+			],
+			"properties": {
+				"mode": "Incremental",
+				"templateLink": {
+					"uri": "https://ngdevops.blob.core.windows.net/ngarmtemplates/v4/NgWebApp.json",
+					"contentVersion": "1.0.0.0"
+				},
+				"parameters": {
+					"hostingPlanName": { "value": "[variables('hostingPlanName')]" },
+					"omniAppsDomainName": {
+						"value": "[parameters('omniAppsDomainName')]"
+					},
+					"everyFileName": { "value": "[variables('everyFileAppName')]" },
+					"everyFileClientId": { "value": "[parameters('everyFileClientId')]" },
+					"everyFileClientSecret": {
+						"value": "[parameters('everyFileClientSecret')]"
+					},
+					"omniAppsKeyVaultName": {
+						"value": "[variables('omniAppsKeyVaultName')]"
+					},
+					"msGraphVersion": { "value": "[parameters('msGraphVersion')]" },
+					"omniCoreApiResourceIdentifier": {
+						"value": "[parameters('omniCoreApiResourceIdentifier')]"
+					},
+					"omniCoreApiEndpoint": {
+						"value": "[reference('OmniCoreApiDeployment', '2017-05-10').outputs.OmniCoreApiEndpoint.value]"
+					},
+					"configurePowerBI": { "value": "[parameters('configurePowerBI')]" },
+					"configureIManage": { "value": "[parameters('configureIManage')]" },
+					"iManageEndpoint": { "value": "[parameters('iManageEndpoint')]" },
+					"iManageClientCodeField": {
+						"value": "[parameters('iManageClientCodeField')]"
+					},
+					"iManageMatterCodeField": {
+						"value": "[parameters('iManageMatterCodeField')]"
+					},
+					"iManageEveryfileClientId": {
+						"value": "[parameters('iManageEveryfileClientId')]"
+					},
+					"iManageEveryfileClientSecret": {
+						"value": "[parameters('iManageEveryfileClientSecret')]"
+					},
+					"docFuncAppEndpoint": {
+						"value": "[if(bool(parameters('configureIManage')), reference('DocumentFunctionAppDeployment', '2017-05-10').outputs.DocFuncAppEndpoint.value, '')]"
+					}
+				}
+			}
+		},
+		{
+			"condition": "[parameters('configureIManage')]",
+			"type": "Microsoft.Resources/deployments",
+			"apiVersion": "2018-05-01",
+			"name": "DocumentFunctionAppDeployment",
+			"dependsOn": [
+				"[concat('Microsoft.KeyVault/vaults/', variables('omniAppsKeyVaultName'))]",
+				"[concat('Microsoft.Storage/storageAccounts/', variables('omniAppsStorageName'))]",
+				"[resourceId('Microsoft.KeyVault/vaults/secrets', variables('omniAppsKeyVaultName'), 'StorageConnectionString')]"
+			],
+			"properties": {
+				"mode": "Incremental",
+				"templateLink": {
+					"uri": "https://ngdevops.blob.core.windows.net/ngarmtemplates/v4/OmniDocFunc.json",
+					"contentVersion": "1.0.0.0"
+				},
+				"parameters": {
+					"storageAccountName": {
+						"value": "[variables('omniAppsStorageName')]"
+					},
+					"docAppFuncName": {
+						"value": "[variables('docFuncAppName')]"
+					},
+					"docFuncAppInsightsName": {
+						"value": "[variables('docFuncAppInsightsName')]"
+					},
+					"keyVaultName": {
+						"value": "[variables('omniAppsKeyVaultName')]"
+					}
+				}
+			}
+		},
+		//{
+		//  "type": "Microsoft.Resources/deployments",
+		//  "apiVersion": "2018-05-01",
+		//  "name": "CompanionDeployment",
+		//  "dependsOn": [
+		//    "[concat('Microsoft.KeyVault/vaults/', variables('omniAppsKeyVaultName'))]"
+		//  ],
+		//  "properties": {
+		//    "mode": "Incremental",
+		//    "templateLink": {
+		//      "uri": "https://ngdevops.blob.core.windows.net/ngarmtemplates/v3/NgAddinsApp.json",
+		//      "contentVersion": "1.0.0.0"
+		//    },
+		//    "parameters": {
+		//      "hostingPlanName": { "value": "[variables('hostingPlanName')]" },
+		//      "omniAppsDomainName": { "value": "[parameters('omniAppsDomainName')]" },
+		//      "companionAppName": { "value": "[variables('companionName')]" },
+		//      "companionClientId": { "value": "[parameters('companionClientId')]" },
+		//      "companionClientSecret": { "value": "[parameters('companionClientSecret')]" },
+		//      "omniAppsKeyvaultName": { "value": "[variables('omniAppsKeyVaultName')]" },
+		//      "omniCoreApiResourceIdentifier": { "value": "[parameters('omniCoreApiResourceIdentifier')]" },
+		//      "omniCoreApiEndpoint": { "value": "[reference('OmniCoreApiDeployment', '2017-05-10').outputs.OmniCoreApiEndpoint.value]" },
+		//      "everyFileUrl": { "value": "[concat('https://', variables('everyFileAppName'), '.azurewebsites.net')]" }
+
+		//    }
+		//  }
+		//},
+		{
+			"type": "Microsoft.Resources/deployments",
+			"apiVersion": "2018-05-01",
+			"name": "updateStorageCors",
+			"dependsOn": [
+				"[concat('Microsoft.Storage/storageAccounts/', variables('omniAppsStorageName'))]"
+			],
+			"properties": {
+				"mode": "Incremental",
+				"parameters": {},
+				"template": {
+					"$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+					"contentVersion": "1.0.0.0",
+					"parameters": {},
+					"variables": {},
+					"resources": [
+						{
+							"name": "[variables('omniAppsStorageName')]",
+							"type": "Microsoft.Storage/storageAccounts",
+							"location": "[resourceGroup().location]",
+							"apiVersion": "2018-07-01",
+							"dependsOn": [],
+							"tags": {
+								"product": "Lexis Omni"
+							},
+							"sku": {
+								"name": "[parameters('omniAppsStorageType')]"
+							},
+							"kind": "StorageV2",
+							"resources": [
+								{
+									"name": "default",
+									"type": "blobServices",
+									"apiVersion": "2018-11-01",
+									"dependsOn": [
+										"[concat('Microsoft.Storage/storageAccounts/', variables('omniAppsStorageName'))]"
+									],
+									"properties": {
+										"cors": {
+											"corsRules": [
+												{
+													"allowedOrigins": [
+														"[reference('EveryFileDeployment', '2017-05-10').outputs.EveryFileEndpoint.value]"
+													],
+													"allowedMethods": ["PUT", "OPTIONS"],
+													"maxAgeInSeconds": 0,
+													"exposedHeaders": ["*"],
+													"allowedHeaders": ["*"]
+												}
+												//{
+												//  "allowedOrigins": [
+												//    "[reference('CompanionDeployment', '2017-05-10').outputs.CompanionAppEndpoint.value]"
+												//  ],
+												//  "allowedMethods": [
+												//    "PUT",
+												//    "OPTIONS"
+												//  ],
+												//  "maxAgeInSeconds": 0,
+												//  "exposedHeaders": [
+												//    "*"
+												//  ],
+												//  "allowedHeaders": [
+												//    "*"
+												//  ]
+												//}
+											]
+										}
+									},
+									"resources": []
+								}
+							]
+						}
+					],
+					"outputs": {}
+				}
+			}
+		}
+	],
+	"outputs": {}
+}

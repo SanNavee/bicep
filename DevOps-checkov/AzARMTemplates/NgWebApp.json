@@ -1,0 +1,338 @@
+﻿{
+	"$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"hostingPlanName": {
+			"type": "string",
+			"minLength": 3,
+			"metadata": {
+				"description": "The name of the hosting AppService Plan"
+			}
+		},
+		"everyFileName": {
+			"type": "string",
+			"minLength": 3,
+			"metadata": {
+				"description": "The name of the EveryFile instance used to formulate the URI"
+			}
+		},
+		"omniAppsDomainName": {
+			"type": "string",
+			"minLength": 3,
+			"metadata": {
+				"description": "The Domain name where the apps are registered"
+			}
+		},
+		"everyFileClientId": {
+			"type": "string",
+			"defaultValue": "",
+			"metadata": {
+				"description": "EveryFile Client Id"
+			}
+		},
+		"everyFileClientSecret": {
+			"type": "string",
+			"defaultValue": "",
+			"metadata": {
+				"description": "EveryFile Client Secret"
+			}
+		},
+		"omniCoreApiResourceIdentifier": {
+			"type": "string",
+			"minLength": 3,
+			"metadata": {
+				"description": "Identifier of the Omni Core API resource defined in it's Azure AD App Registration"
+			}
+		},
+		"omniCoreApiEndpoint": {
+			"type": "string",
+			"metadata": {
+				"description": "The Url of the Omni Core Api"
+			}
+		},
+		"omniAppsKeyVaultName": {
+			"type": "string",
+			"minLength": 5,
+			"metadata": {
+				"description": "Name of the Azure KeyVault instance"
+			}
+		},
+		"msGraphVersion": {
+			"type": "string",
+			"defaultValue": "beta",
+			"metadata": {
+				"description": "MS Graph API version"
+			}
+		},
+		"configurePowerBI": {
+			"type": "bool",
+			"defaultValue": false,
+			"metadata": {
+				"description": "Whether to include the PowerBI configuration for EveryFile"
+			}
+		},
+		"configureIManage": {
+			"type": "bool",
+			"defaultValue": false,
+			"metadata": {
+				"description": "Whether to include the iManage configuration in Everyfile"
+			}
+		},
+		"iManageEndpoint": {
+			"type": "string",
+			"metadata": {
+				"description": "Endpoint of the iManage resource"
+			}
+		},
+		"iManageClientCodeField": {
+			"type": "string",
+			"metadata": {
+				"description": "Visualfiles identified Client Code used for mapping the iManage workspace"
+			}
+		},
+		"iManageMatterCodeField": {
+			"type": "string",
+			"metadata": {
+				"description": "Visualfiles identified Matter Code used for mapping the iManage workspace"
+			}
+		},
+		"iManageEveryfileClientId": {
+			"type": "string",
+			"metadata": {
+				"description": "Client Id issued by iManage when Everyfile was registered"
+			}
+		},
+		"iManageEveryfileClientSecret": {
+			"type": "string",
+			"metadata": {
+				"description": "Client Secret issued by iManage when Everyfile was registered"
+			}
+		},
+		"docFuncAppEndpoint": {
+			"type": "string",
+			"metadata": {
+				"description": "Document Function App Endpoint"
+			}
+		}
+	},
+	"variables": {
+		"ai-name": "[concat('appi-', parameters('everyFileName'))]",
+		"baseProps": {
+			"Resources:OmniCoreApi:Resource": "[parameters('omniCoreApiResourceIdentifier')]",
+			"Resources:OmniCoreApi:Endpoint": "[parameters('omniCoreApiEndpoint')]",
+			"Resources:MSGraph:Resource": "https://graph.microsoft.com",
+			"Resources:MSGraph:Endpoint": "[concat('https://graph.microsoft.com/', parameters('msGraphVersion'))]",
+			"KeyVaultName": "[parameters('omniAppskeyVaultName')]",
+			"Customisations:RecentItemsMaximumLimit": 200,
+			"Customisations:CompanyName": "Everyfile"
+		},
+		"everyFilePowerBIProps": {
+			"Resources:PowerBI:Resource": "https://analysis.windows.net/powerbi/api",
+			"Resources:PowerBI:Endpoint": "https://api.powerbi.com/"
+		},
+		"everyFileiManageProps": {
+			"Resources:iManage:Endpoint": "[parameters('iManageEndpoint')]",
+			"Resources:iManage:ClientCodeField": "[parameters('iManageClientCodeField')]",
+			"Resources:iManage:MatterCodeField": "[parameters('iManageMatterCodeField')]",
+			"Resources:iManage:Scopes": "user",
+			"Resources:DocumentAssembly:Endpoint":"[parameters('docFuncAppEndpoint')]" 
+		},
+    "appsettings": "[union(variables('baseProps'),
+      if(parameters('configurePowerBI'),
+        variables('everyFilePowerBIProps'), 
+        json('{}')
+      ),
+      if (parameters('configureIManage'), 
+        variables('everyFileiManageProps'),  
+				json('{}')
+      )
+    )]"
+	},
+	"resources": [
+		{
+			"apiVersion": "2018-02-01",
+			"name": "[parameters('everyFileName')]",
+			"type": "Microsoft.Web/sites",
+			"location": "[resourceGroup().location]",
+			"identity": {
+				"type": "SystemAssigned"
+			},
+			"tags": {
+				"[concat('hidden-related:', resourceGroup().id, '/providers/Microsoft.Web/serverfarms/', parameters('hostingPlanName'))]": "Resource",
+				"product": "Lexis Omni"
+			},
+			"properties": {
+				"name": "[parameters('everyFileName')]",
+				"serverFarmId": "[resourceId('Microsoft.Web/serverfarms', parameters('hostingPlanName'))]",
+				"httpsOnly": true,
+				"scmSiteAlsoStopped": false,
+				"clientAffinityEnabled": false,
+				"clientCertEnabled": false,
+				"hostNamesDisabled": false,
+				"siteConfig": {
+					"http20Enabled": true,
+					"ftpsState": "Disabled",
+					"alwaysOn": true,
+					"use32BitWorkerProcess": false
+				}
+			},
+			"resources": [
+				{
+					"apiVersion": "2018-02-01",
+					"type": "config",
+					"name": "appsettings",
+					"dependsOn": [
+						"[resourceId('Microsoft.Web/sites', parameters('everyFileName'))]",
+						"[resourceId('microsoft.insights/components', variables('ai-name'))]"
+					],
+					"properties": "[union(variables('appsettings'), json(concat('{\"APPINSIGHTS_INSTRUMENTATIONKEY\":', '\"', reference(resourceId('Microsoft.Insights/components',  variables('ai-name')), '2014-04-01').InstrumentationKey, '\"}')))]"
+				}
+			]
+		},
+		{
+			"apiVersion": "2014-04-01",
+			"name": "[variables('ai-name')]",
+			"type": "Microsoft.Insights/components",
+			"location": "[resourceGroup().location]",
+			"dependsOn": [
+				"[resourceId('Microsoft.Web/sites/', parameters('everyFileName'))]"
+			],
+			"tags": {
+				"[concat('hidden-link:', resourceId('Microsoft.Web/sites',  variables('ai-name')))]": "Resource",
+				"displayName": "AppInsightsComponent"
+			},
+			"properties": {
+				"ApplicationId": "[parameters('everyFileName')]"
+			}
+		},
+		{
+			"type": "Microsoft.KeyVault/vaults/accessPolicies",
+			"name": "[concat(parameters('omniAppskeyVaultName'), '/add')]",
+			"apiVersion": "2016-10-01",
+			"properties": {
+				"accessPolicies": [
+					{
+						"objectId": "[reference(concat(resourceId('Microsoft.Web/sites', parameters('everyFileName')), '/providers/Microsoft.ManagedIdentity/Identities/default'), '2018-11-30').principalId]", //Web App Access
+						"tenantId": "[subscription().tenantid]",
+						"permissions": {
+							"secrets": ["get", "list"]
+						}
+					}
+				]
+			}
+		},
+		{
+			"type": "Microsoft.KeyVault/vaults/secrets",
+			"name": "[concat(parameters('omniAppskeyVaultName'), '/EveryFile--AzureAd--ClientId')]",
+			"apiVersion": "2016-10-01",
+			"tags": {
+				"displayName": "KeyVault Secrets - EveryFile Client Id"
+			},
+			"dependsOn": [
+				"[resourceId('Microsoft.Web/sites', parameters('everyFileName'))]"
+			],
+			"properties": {
+				"value": "[parameters('everyFileClientId')]",
+				"contentType": "text/plain"
+			}
+		},
+		{
+			"type": "Microsoft.KeyVault/vaults/secrets",
+			"name": "[concat(parameters('omniAppskeyVaultName'), '/EveryFile--AzureAd--ClientSecret')]",
+			"apiVersion": "2016-10-01",
+			"tags": {
+				"displayName": "KeyVault Secrets - EveryFile Client Secret"
+			},
+			"dependsOn": [
+				"[resourceId('Microsoft.Web/sites', parameters('everyFileName'))]"
+			],
+			"properties": {
+				"value": "[parameters('everyFileClientSecret')]",
+				"contentType": "text/plain"
+			}
+		},
+		{
+			"type": "Microsoft.KeyVault/vaults/secrets",
+			"name": "[concat(parameters('omniAppskeyVaultName'), '/EveryFile--AzureAd--Instance')]",
+			"apiVersion": "2016-10-01",
+			"tags": {
+				"displayName": "KeyVault Secrets - EveryFile IdP Endpoint"
+			},
+			"dependsOn": [
+				"[resourceId('Microsoft.Web/sites', parameters('everyFileName'))]"
+			],
+			"properties": {
+				"value": "https://login.microsoftonline.com/",
+				"contentType": "text/plain"
+			}
+		},
+		{
+			"type": "Microsoft.KeyVault/vaults/secrets",
+			"name": "[concat(parameters('omniAppskeyVaultName'), '/EveryFile--AzureAd--TenantId')]",
+			"apiVersion": "2016-10-01",
+			"tags": {
+				"displayName": "KeyVault Secrets - EveryFile Tenant Id"
+			},
+			"dependsOn": [
+				"[resourceId('Microsoft.Web/sites', parameters('everyFileName'))]"
+			],
+			"properties": {
+				"value": "[subscription().tenantId]",
+				"contentType": "text/plain"
+			}
+		},
+		{
+			"type": "Microsoft.KeyVault/vaults/secrets",
+			"name": "[concat(parameters('omniAppsKeyVaultName'), '/EveryFile--AzureAd--Domain')]",
+			"apiVersion": "2016-10-01",
+			"tags": {
+				"displayName": "KeyVault Secrets - EveryFile Domain"
+			},
+			"dependsOn": [
+				"[resourceId('Microsoft.Web/sites', parameters('everyFileName'))]"
+			],
+			"properties": {
+				"value": "[parameters('omniAppsDomainName')]",
+				"contentType": "text/plain"
+			}
+		},
+		{
+			"condition": "[equals(parameters('configureIManage'), true())]",
+			"type": "Microsoft.KeyVault/vaults/secrets",
+			"name": "[concat(parameters('omniAppsKeyVaultName'), '/Resources--iManage--ClientId')]",
+			"apiVersion": "2016-10-01",
+			"tags": {
+				"displayName": "KeyVault Secrets - iManage ClientId"
+			},
+			"dependsOn": [
+				"[resourceId('Microsoft.Web/sites', parameters('everyFileName'))]"
+			],
+			"properties": {
+				"value": "[parameters('iManageEveryfileClientId')]",
+				"contentType": "text/plain"
+			}
+		},
+		{
+			"condition": "[equals(parameters('configureIManage'), true())]",
+			"type": "Microsoft.KeyVault/vaults/secrets",
+			"name": "[concat(parameters('omniAppsKeyVaultName'), '/Resources--iManage--ClientSecret')]",
+			"apiVersion": "2016-10-01",
+			"tags": {
+				"displayName": "KeyVault Secrets - iManage ClientSecret"
+			},
+			"dependsOn": [
+				"[resourceId('Microsoft.Web/sites', parameters('everyFileName'))]"
+			],
+			"properties": {
+				"value": "[parameters('iManageEveryfileClientSecret')]",
+				"contentType": "text/plain"
+			}
+		}
+	],
+	"outputs": {
+		"EveryFileEndpoint": {
+			"type": "string",
+			"value": "[concat('https://', reference(concat('Microsoft.Web/sites/', parameters('everyFileName'))).defaultHostName)]"
+		}
+	}
+}

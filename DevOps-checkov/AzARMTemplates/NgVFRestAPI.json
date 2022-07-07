@@ -1,0 +1,354 @@
+﻿{
+	"$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"environmentName": {
+			"type": "string",
+			"minLength": 1
+		},
+		"locationAbbreviation": {
+			"type": "string",
+			"minLength": 1,
+			"defaultValue": "uks"
+		},
+		"instance": {
+			"type": "string",
+			"minLength": 3,
+			"defaultValue": "001"
+		},
+		"hostingPlanName": {
+			"type": "string",
+			"minLength": 3,
+			"metadata": {
+				"description": "The name of the hosting AppService Plan"
+			}
+		},
+		"omniCoreApiName": {
+			"type": "string",
+			"minLength": 3,
+			"metadata": {
+				"description": "The name of the Omni Core API instance used to formulate the URI"
+			}
+		},
+		"omniCoreApiClientId": {
+			"type": "string",
+			"minLength": 5,
+			"metadata": {
+				"description": "ClientId of the resource defined in Azure AD App Registration"
+			}
+		},
+		"omniCoreApiResourceIdentifier": {
+			"type": "string",
+			"defaultValue": "",
+			"metadata": {
+				"description": "Identifier Uri for Omni Core API in AD Registration manifest"
+			}
+		},
+		"omniCoreApiHybridConnectionHost": {
+			"type": "string",
+			"minLength": 1,
+			"metadata": {
+				"description": "Uri of the Omni Core AppServer Resource for the HCM to use"
+			}
+		},
+		"omniCoreApiHybridConnectionPort": {
+			"type": "int",
+			"metadata": {
+				"description": "Port Number of the Omni Core AppServer Resource for the HCM to use"
+			}
+		},
+		"omniCoreAppsKeyVaultName": {
+			"type": "string",
+			"minLength": 5,
+			"metadata": {
+				"description": "Name of the Azure KeyVault instance"
+			}
+		},
+		"omniAppsStorageConnectionString": {
+			"type": "string",
+			"metadata": {
+				"description": "Connection String of the Azure Storage Account"
+			}
+		}
+	},
+	"variables": {
+		"relay-namespace-name": "[concat('relayapi', parameters('environmentName'), parameters('locationAbbreviation'), parameters('instance'))]",
+		"hybrid-connection-name": "[concat('hycnapi', parameters('environmentName'), parameters('locationAbbreviation'), parameters('instance'))]",
+		"ai-name": "[concat('appi-core-api-', parameters('environmentName'), '-', parameters('locationAbbreviation'), '-', parameters('instance'))]"
+	},
+	"resources": [
+		{
+			"name": "[parameters('omniCoreApiName')]",
+			"type": "Microsoft.Web/sites",
+			"location": "[resourceGroup().location]",
+			"apiVersion": "2018-11-01",
+			"kind": "api",
+			"identity": {
+				"type": "SystemAssigned"
+			},
+			"tags": {
+				"displayName": "AppService"
+			},
+			"properties": {
+				"name": "[parameters('omniCoreApiName')]",
+				"serverFarmId": "[resourceId('Microsoft.Web/serverfarms', parameters('hostingPlanName'))]",
+				"httpsOnly": true,
+				"scmSiteAlsoStopped": false,
+				"clientAffinityEnabled": false,
+				"clientCertEnabled": false,
+				"hostNamesDisabled": false,
+				"siteConfig": {
+					"http20Enabled": true,
+					"ftpsState": "Disabled",
+					"alwaysOn": true,
+					"use32BitWorkerProcess": false,
+					"virtualApplications": [
+						{
+							"virtualPath": "/",
+							"physicalPath": "site\\wwwroot",
+							"preloadEnabled": true
+						},
+						{
+							"virtualPath": "/DocumentProcessingWebJob",
+							"physicalPath": "site\\jobs\\continuous\\DocumentProcessingWebJob",
+							"preloadEnabled": false
+						}
+					]
+				}
+			},
+			"resources": [
+				{
+					"apiVersion": "2018-11-01",
+					"type": "config",
+					"name": "appsettings",
+					"dependsOn": [
+						"[resourceId('Microsoft.Web/sites', parameters('omniCoreApiName'))]",
+						"[resourceId('microsoft.insights/components', variables('ai-name'))]"
+						// "Microsoft.ApplicationInsights.AzureWebSites"
+					],
+					"properties": {
+						"KeyVaultName": "[parameters('omniCoreAppsKeyVaultName')]",
+						"APPINSIGHTS_INSTRUMENTATIONKEY": "[reference(resourceId('Microsoft.Insights/components',  variables('ai-name')), '2014-04-01').InstrumentationKey]"
+					}
+				}
+				// {
+				//  "apiVersion": "2015-08-01",
+				//  "name": "Microsoft.ApplicationInsights.AzureWebSites",
+				//  "type": "siteextensions",
+				//  "dependsOn": [
+				//    "[resourceId('Microsoft.Web/sites', parameters('vfRestApiName'))]"
+				//  ],
+				//  "properties": {}
+				//}
+			]
+		},
+		{
+			"apiVersion": "2014-04-01",
+			"name": "[variables('ai-name')]",
+			"type": "Microsoft.Insights/components",
+			"location": "[resourceGroup().location]",
+			"dependsOn": [
+				"[resourceId('Microsoft.Web/sites/', parameters('omniCoreApiName'))]"
+			],
+			"tags": {
+				"[concat('hidden-link:', resourceId('Microsoft.Web/sites',  variables('ai-name')))]": "Resource",
+				"displayName": "AppInsightsComponent"
+			},
+			"properties": {
+				"ApplicationId": "[parameters('omniCoreApiName')]"
+			}
+		},
+		{
+			"apiVersion": "2017-04-01",
+			"name": "[variables('relay-namespace-name')]",
+			"type": "Microsoft.Relay/Namespaces",
+			"location": "[resourceGroup().location]",
+			"sku": {
+				"name": "Standard"
+			},
+			"tags": {
+				"displayName": "Relay Namespace"
+			},
+			"properties": {},
+			"resources": [
+				{
+					"apiVersion": "2017-04-01",
+					"name": "[variables('hybrid-connection-name')]",
+					"type": "HybridConnections",
+					"tags": {
+						"displayName": "Hybrid Connection"
+					},
+					"dependsOn": ["[variables('relay-namespace-name')]"],
+					"properties": {
+						"requiresClientAuthorization": true,
+						"userMetadata": "[concat('[{\"key\":\"endpoint\",\"value\":\"', parameters('omniCoreApiHybridConnectionHost'), ':', parameters('omniCoreApiHybridConnectionPort'),'\"}]')]"
+					}
+				},
+				{
+					"type": "Microsoft.Relay/namespaces/hybridConnections/authorizationRules",
+					"apiVersion": "2017-04-01",
+					"name": "[concat(variables('relay-namespace-name'), '/', variables('hybrid-connection-name'), '/defaultListener')]",
+					"location": "[resourceGroup().location]",
+					"tags": {
+						"displayName": "Listen Rule"
+					},
+					"dependsOn": [
+						"[resourceId('Microsoft.Relay/namespaces/hybridConnections', variables('relay-namespace-name'), variables('hybrid-connection-name'))]",
+						"[resourceId('Microsoft.Relay/namespaces', variables('relay-namespace-name'))]"
+					],
+					"properties": {
+						"rights": ["Listen"]
+					}
+				},
+				{
+					"type": "Microsoft.Relay/namespaces/hybridConnections/authorizationRules",
+					"apiVersion": "2017-04-01",
+					"name": "[concat(variables('relay-namespace-name'), '/', variables('hybrid-connection-name'), '/defaultSender')]",
+					"location": "[resourceGroup().location]",
+					"tags": {
+						"displayName": "Send Rule"
+					},
+					"dependsOn": [
+						"[resourceId('Microsoft.Relay/namespaces/hybridConnections', variables('relay-namespace-name'), variables('hybrid-connection-name'))]",
+						"[resourceId('Microsoft.Relay/namespaces', variables('relay-namespace-name'))]"
+					],
+					"properties": {
+						"rights": ["Send"]
+					}
+				}
+			]
+		},
+		{
+			"type": "Microsoft.Web/sites/hybridConnectionNamespaces/relays",
+			"name": "[concat(parameters('omniCoreApiName'), '/', variables('relay-namespace-name'), '/', variables('hybrid-connection-name'))]",
+			"apiVersion": "2018-02-01",
+			"location": "[resourceGroup().location]",
+			"tags": {
+				"displayName": "Relay Hybrid Connection"
+			},
+			"dependsOn": [
+				"[variables('relay-namespace-name')]",
+				"[resourceId('Microsoft.Web/sites/', parameters('omniCoreApiName'))]"
+			],
+			"properties": {
+				"relayArmUri": "[concat('/subscriptions/',subscription().subscriptionId,'/resourceGroups/',resourceGroup().name,'/providers/Microsoft.Relay/namespaces/', variables('relay-namespace-name') ,'/HybridConnections/', variables('hybrid-connection-name'))]",
+				"hostname": "[parameters('omniCoreApiHybridConnectionHost')]",
+				"port": "[parameters('omniCoreApiHybridConnectionPort')]",
+				"sendKeyName": "defaultSender",
+				"sendKeyValue": ""
+			}
+		},
+		{
+			"type": "Microsoft.KeyVault/vaults/accessPolicies",
+			"name": "[concat(parameters('omniCoreAppsKeyVaultName'), '/add')]",
+			"apiVersion": "2016-10-01",
+			"properties": {
+				"accessPolicies": [
+					{
+						"objectId": "[reference(concat(resourceId('Microsoft.Web/sites', parameters('omniCoreApiName')), '/providers/Microsoft.ManagedIdentity/Identities/default'), '2018-11-30').principalId]", //Rest API Access
+						"tenantId": "[subscription().tenantid]",
+						"permissions": {
+							"secrets": ["get", "list"]
+						}
+					}
+				]
+			}
+		},
+		{
+			"type": "Microsoft.KeyVault/vaults/secrets",
+			"name": "[concat(parameters('omniCoreAppsKeyVaultName'), '/CoreRestApi--AzureAd--Instance')]",
+			"apiVersion": "2016-10-01",
+			"tags": {
+				"displayName": "KeyVault Secrets - Omni Core API IdP Instance URL"
+			},
+			"dependsOn": [
+				"[resourceId('Microsoft.Web/sites', parameters('omniCoreApiName'))]"
+			],
+			"properties": {
+				"value": "https://login.microsoftonline.com/",
+				"contentType": "text/plain"
+			}
+		},
+		{
+			"type": "Microsoft.KeyVault/vaults/secrets",
+			"name": "[concat(parameters('omniCoreAppsKeyVaultName'), '/CoreRestApi--AzureAd--TenantId')]",
+			"apiVersion": "2016-10-01",
+			"tags": {
+				"displayName": "KeyVault Secrets - Omni Core API Tenant Id"
+			},
+			"dependsOn": [
+				"[resourceId('Microsoft.Web/sites', parameters('omniCoreApiName'))]"
+			],
+			"properties": {
+				"value": "[subscription().tenantId]",
+				"contentType": "text/plain"
+			}
+		},
+		{
+			"type": "Microsoft.KeyVault/vaults/secrets",
+			"name": "[concat(parameters('omniCoreAppsKeyVaultName'), '/CoreRestApi--AzureAd--Audiences')]",
+			"apiVersion": "2016-10-01",
+			"tags": {
+				"displayName": "KeyVault Secrets - Omni Core API Audiences"
+			},
+			"dependsOn": [
+				"[resourceId('Microsoft.Web/sites', parameters('omniCoreApiName'))]"
+			],
+			"properties": {
+				"value": "[parameters('omniCoreApiResourceIdentifier')]",
+				"contentType": "text/plain"
+			}
+		},
+		{
+			"type": "Microsoft.KeyVault/vaults/secrets",
+			"name": "[concat(parameters('omniCoreAppsKeyVaultName'), '/CoreRestApi--AzureAd--ClientId')]",
+			"apiVersion": "2016-10-01",
+			"tags": {
+				"displayName": "KeyVault Secrets - Omni Core API Client Id"
+			},
+			"dependsOn": [
+				"[resourceId('Microsoft.Web/sites', parameters('omniCoreApiName'))]"
+			],
+			"properties": {
+				"value": "[parameters('omniCoreApiClientId')]",
+				"contentType": "text/plain"
+			}
+		},
+		{
+			"type": "Microsoft.KeyVault/vaults/secrets",
+			"name": "[concat(parameters('omniCoreAppsKeyVaultName'), '/CoreRestApi--OmniCoreAppServers')]",
+			"apiVersion": "2016-10-01",
+			"tags": {
+				"displayName": "KeyVault Secrets - Omni Core OE AppServer URLs"
+			},
+			"dependsOn": [
+				"[resourceId('Microsoft.Web/sites', parameters('omniCoreApiName'))]"
+			],
+			"properties": {
+				"value": "[concat('AppserverDC://', parameters('omniCoreApiHybridConnectionHost'), ':', parameters('omniCoreApiHybridConnectionPort'))]",
+				"contentType": "text/plain"
+			}
+		},
+		{
+			"type": "Microsoft.KeyVault/vaults/secrets",
+			"name": "[concat(parameters('omniCoreAppsKeyVaultName'), '/ConnectionStrings--AzureWebJobsStorage')]",
+			"apiVersion": "2016-10-01",
+			"tags": {
+				"displayName": "KeyVault Secrets - WebJob Connection String"
+			},
+			"dependsOn": [
+				"[resourceId('Microsoft.Web/sites', parameters('omniCoreApiName'))]"
+			],
+			"properties": {
+				"value": "[parameters('omniAppsStorageConnectionString')]",
+				"contentType": "text/plain"
+			}
+		}
+	],
+	"outputs": {
+		"OmniCoreApiEndpoint": {
+			"type": "string",
+			"value": "[concat('https://', reference(concat('Microsoft.Web/sites/', parameters('omniCoreApiName'))).defaultHostName, '/api/')]"
+		}
+	}
+}

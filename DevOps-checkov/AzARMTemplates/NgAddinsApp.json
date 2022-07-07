@@ -1,0 +1,208 @@
+﻿{
+	"$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"hostingPlanName": {
+			"type": "string",
+			"minLength": 3,
+			"metadata": {
+				"description": "The name of the hosting AppService Plan"
+			}
+		},
+		"companionAppName": {
+			"type": "string",
+			"minLength": 3,
+			"metadata": {
+				"description": "The name of the Companion App instance used to formulate the URI"
+			}
+		},
+		"omniAppsDomainName": {
+			"type": "string",
+			"minLength": 3,
+			"metadata": {
+				"description": "The Domain name where the apps are registered"
+			}
+		},
+		"companionClientId": {
+			"type": "string",
+			"minLength": 3,
+			"metadata": {
+				"description": "The Companion app Client Id from it's AD Registration"
+			}
+		},
+		"companionClientSecret": {
+			"type": "string",
+			"minLength": 3,
+			"metadata": {
+				"description": "The Companion app Client Secret from it's AD Registration"
+			}
+		},
+		"omniCoreApiResourceIdentifier": {
+			"type": "string",
+			"minLength": 3,
+			"metadata": {
+				"description": "Identifier of the Omni Core API resource defined in it's Azure AD App Registration"
+			}
+		},
+		"omniCoreApiEndpoint": {
+			"type": "string",
+			"minLength": 3,
+			"metadata": {
+				"description": "The URL of the Omni Core API"
+			}
+		},
+		"omniAppsKeyVaultName": {
+			"type": "string",
+			"minLength": 5,
+			"metadata": {
+				"description": "Name of the Azure KeyVault instance"
+			}
+		},
+		"everyFileUrl": {
+			"type": "string",
+			"minLength": 5,
+			"metadata": {
+				"description": "The URL of theEveryFile instance"
+			}
+		}
+	},
+	"variables": {},
+	"resources": [
+		{
+			"apiVersion": "2018-02-01",
+			"name": "[parameters('companionAppName')]",
+			"type": "Microsoft.Web/sites",
+			"location": "[resourceGroup().location]",
+			"identity": {
+				"type": "SystemAssigned"
+			},
+			"tags": {
+				"[concat('hidden-related:', resourceGroup().id, '/providers/Microsoft.Web/serverfarms/', parameters('hostingPlanName'))]": "Resource",
+				"displayName": "Lexis Omni Companion"
+			},
+			"properties": {
+				"name": "[parameters('companionAppName')]",
+				"serverFarmId": "[resourceId('Microsoft.Web/serverfarms', parameters('hostingPlanName'))]",
+				"httpsOnly": true,
+				"scmSiteAlsoStopped": false,
+				"clientAffinityEnabled": false,
+				"clientCertEnabled": false,
+				"hostNamesDisabled": false,
+				"siteConfig": {
+					"http20Enabled": true,
+					"ftpsState": "Disabled",
+					"alwaysOn": true,
+					"use32BitWorkerProcess": false
+				}
+			},
+			"resources": [
+				{
+					"apiVersion": "2018-02-01",
+					"type": "config",
+					"name": "appsettings",
+					"dependsOn": [
+						"[resourceId('Microsoft.Web/sites', parameters('companionAppName'))]"
+					],
+					"properties": {
+						"Resources:OmniCoreApi:Resource": "[parameters('omniCoreApiResourceIdentifier')]",
+						"Resources:OmniCoreApi:Endpoint": "[parameters('omniCoreApiEndpoint')]",
+						"KeyVaultName": "[parameters('omniAppsKeyVaultName')]",
+						"Customisations:WebAppUrl": "[parameters('everyFileUrl')]"
+					}
+				}
+			]
+		},
+		{
+			"type": "Microsoft.KeyVault/vaults/secrets",
+			"name": "[concat(parameters('omniAppsKeyVaultName'), '/Companion--AzureAd--Instance')]",
+			"apiVersion": "2016-10-01",
+			"tags": {
+				"displayName": "KeyVault Secrets - Companion IdP Instance URL"
+			},
+			"dependsOn": [
+				"[resourceId('Microsoft.Web/sites', parameters('companionAppName'))]"
+			],
+			"properties": {
+				"value": "https://login.microsoftonline.com/"
+			}
+		},
+		{
+			"type": "Microsoft.KeyVault/vaults/secrets",
+			"name": "[concat(parameters('omniAppsKeyVaultName'), '/Companion--AzureAd--TenantId')]",
+			"apiVersion": "2016-10-01",
+			"tags": {
+				"displayName": "KeyVault Secrets - Companion Tenant Id"
+			},
+			"dependsOn": [
+				"[resourceId('Microsoft.Web/sites', parameters('companionAppName'))]"
+			],
+			"properties": {
+				"value": "[subscription().tenantId]"
+			}
+		},
+		{
+			"type": "Microsoft.KeyVault/vaults/secrets",
+			"name": "[concat(parameters('omniAppsKeyVaultName'), '/Companion--AzureAd--Domain')]",
+			"apiVersion": "2016-10-01",
+			"tags": {
+				"displayName": "KeyVault Secrets - Companion Domain"
+			},
+			"dependsOn": [
+				"[resourceId('Microsoft.Web/sites', parameters('companionAppName'))]"
+			],
+			"properties": {
+				"value": "[parameters('omniAppsDomainName')]"
+			}
+		},
+		{
+			"type": "Microsoft.KeyVault/vaults/secrets",
+			"name": "[concat(parameters('omniAppsKeyVaultName'), '/Companion--AzureAd--ClientId')]",
+			"apiVersion": "2016-10-01",
+			"tags": {
+				"displayName": "KeyVault Secrets - Companion Client Id"
+			},
+			"dependsOn": [
+				"[resourceId('Microsoft.Web/sites', parameters('companionAppName'))]"
+			],
+			"properties": {
+				"value": "[parameters('companionClientId')]"
+			}
+		},
+		{
+			"type": "Microsoft.KeyVault/vaults/secrets",
+			"name": "[concat(parameters('omniAppsKeyVaultName'), '/Companion--AzureAd--ClientSecret')]",
+			"apiVersion": "2016-10-01",
+			"tags": {
+				"displayName": "KeyVault Secrets - Companion Client Secret"
+			},
+			"dependsOn": [
+				"[resourceId('Microsoft.Web/sites', parameters('companionAppName'))]"
+			],
+			"properties": {
+				"value": "[parameters('companionClientSecret')]"
+			}
+		},
+		{
+			"type": "Microsoft.KeyVault/vaults/accessPolicies",
+			"name": "[concat(parameters('omniAppsKeyVaultName'), '/add')]",
+			"apiVersion": "2016-10-01",
+			"properties": {
+				"accessPolicies": [
+					{
+						"objectId": "[reference(concat(resourceId('Microsoft.Web/sites', parameters('companionAppName')), '/providers/Microsoft.ManagedIdentity/Identities/default'), '2018-11-30').principalId]", //Companion App Access
+						"tenantId": "[subscription().tenantid]",
+						"permissions": {
+							"secrets": ["get", "list"]
+						}
+					}
+				]
+			}
+		}
+	],
+	"outputs": {
+		"CompanionAppEndpoint": {
+			"type": "string",
+			"value": "[concat('https://', reference(concat('Microsoft.Web/sites/', parameters('companionAppName'))).defaultHostName)]"
+		}
+	}
+}

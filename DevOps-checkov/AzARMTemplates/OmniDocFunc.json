@@ -1,0 +1,287 @@
+{
+	"$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"storageAccountName": {
+			"type": "String"
+		},
+		"docAppFuncName": {
+			"type": "String"
+		},
+		"docFuncAppInsightsName": {
+			"type": "string"
+		},
+		"keyVaultName": {
+			"type": "string"
+		}
+	},
+	"variables": {
+		"plan-name": "[concat('plan-', parameters('docAppFuncName'))]",
+		"docFuncAppId": "[concat(resourceGroup().id,'/providers/Microsoft.Web/sites/', parameters('docAppFuncName'))]"
+	},
+	"resources": [
+		{
+			"type": "Microsoft.Web/serverfarms",
+			"apiVersion": "2018-02-01",
+			"name": "[variables('plan-name')]",
+			"location": "[resourceGroup().location]",
+			"tags": { "product": "Lexis Omni" },
+			"sku": {
+				"name": "Y1",
+				"tier": "Dynamic",
+				"size": "Y1",
+				"family": "Y",
+				"capacity": 0
+			},
+			"kind": "functionapp",
+			"properties": {
+				"perSiteScaling": false,
+				"maximumElasticWorkerCount": 1,
+				"isSpot": false,
+				"reserved": false,
+				"isXenon": false,
+				"hyperV": false,
+				"targetWorkerCount": 0,
+				"targetWorkerSizeId": 0
+			}
+		},
+		{
+			"type": "Microsoft.Web/sites",
+			"apiVersion": "2018-11-01",
+			"name": "[parameters('docAppFuncName')]",
+			"dependsOn": [
+				"[resourceId('Microsoft.Web/serverfarms', variables('plan-name'))]"
+			],
+			"location": "[resourceGroup().location]",
+			"kind": "functionapp",
+			"identity": {
+				"type": "SystemAssigned"
+			},
+			"tags": { "product": "Lexis Omni" },
+			"properties": {
+				"enabled": true,
+				"hostNameSslStates": [
+					{
+						"name": "[concat(parameters('docAppFuncName'), '.azurewebsites.net')]",
+						"sslState": "Disabled",
+						"hostType": "Standard"
+					},
+					{
+						"name": "[concat(parameters('docAppFuncName'), '.scm.azurewebsites.net')]",
+						"sslState": "Disabled",
+						"hostType": "Repository"
+					}
+				],
+				"serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('plan-name'))]",
+				"reserved": false,
+				"isXenon": false,
+				"hyperV": false,
+				"scmSiteAlsoStopped": false,
+				"clientAffinityEnabled": false,
+				"clientCertEnabled": false,
+				"hostNamesDisabled": false,
+				"containerSize": 1536,
+				"dailyMemoryTimeQuota": 0,
+				"httpsOnly": true,
+				"redundancyMode": "None"
+			}
+		},
+		{
+			"type": "Microsoft.Web/sites/config",
+			"apiVersion": "2018-11-01",
+			"name": "[concat(parameters('docAppFuncName'), '/web')]",
+			"location": "[resourceGroup().location]",
+			"dependsOn": [
+				"[resourceId('Microsoft.Web/sites', parameters('docAppFuncName'))]"
+			],
+			"properties": {
+				"numberOfWorkers": 1,
+				"defaultDocuments": [
+					"Default.htm",
+					"Default.html",
+					"Default.asp",
+					"index.htm",
+					"index.html",
+					"iisstart.htm",
+					"default.aspx",
+					"index.php"
+				],
+				"netFrameworkVersion": "v4.0",
+				"phpVersion": "5.6",
+				"requestTracingEnabled": false,
+				"remoteDebuggingEnabled": false,
+				"remoteDebuggingVersion": "VS2019",
+				"httpLoggingEnabled": false,
+				"logsDirectorySizeLimit": 35,
+				"detailedErrorLoggingEnabled": false,
+				"publishingUsername": "$omni-documents",
+				"azureStorageAccounts": {},
+				"scmType": "None",
+				"use32BitWorkerProcess": true,
+				"webSocketsEnabled": false,
+				"alwaysOn": false,
+				"managedPipelineMode": "Integrated",
+				"virtualApplications": [
+					{
+						"virtualPath": "/",
+						"physicalPath": "site\\wwwroot",
+						"preloadEnabled": false
+					}
+				],
+				"loadBalancing": "LeastRequests",
+				"experiments": {
+					"rampUpRules": []
+				},
+				"autoHealEnabled": false,
+				"cors": {
+					"allowedOrigins": [
+						"https://functions.azure.com",
+						"https://functions-staging.azure.com",
+						"https://functions-next.azure.com"
+					],
+					"supportCredentials": false
+				},
+				"localMySqlEnabled": false,
+				"managedServiceIdentityId": 3149,
+				"ipSecurityRestrictions": [
+					{
+						"ipAddress": "Any",
+						"action": "Allow",
+						"priority": 1,
+						"name": "Allow all",
+						"description": "Allow all access"
+					}
+				],
+				"scmIpSecurityRestrictions": [
+					{
+						"ipAddress": "Any",
+						"action": "Allow",
+						"priority": 1,
+						"name": "Allow all",
+						"description": "Allow all access"
+					}
+				],
+				"scmIpSecurityRestrictionsUseMain": false,
+				"http20Enabled": true,
+				"minTlsVersion": "1.2",
+				"ftpsState": "Disabled",
+				"reservedInstanceCount": 0
+			}
+		},
+		{
+			"type": "Microsoft.Web/sites/config",
+			"apiVersion": "2018-11-01",
+			"name": "[concat(parameters('docAppFuncName'), '/appsettings')]",
+			"dependsOn": [
+				"[resourceId('Microsoft.Web/sites', parameters('docAppFuncName'))]",
+				"[concat('Microsoft.Resources/deployments/', 'DocumentFunctionAppDeploymentAccessPolicy')]"
+			],
+			"properties": {
+				"FUNCTIONS_EXTENSION_VERSION": "~3",
+				"AzureWebJobsDashboard": "[concat('@Microsoft.KeyVault(SecretUri=https://', parameters('keyVaultName'), '.vault.azure.net/secrets/StorageConnectionString/)')]",
+				"AzureWebJobsStorage": "[concat('@Microsoft.KeyVault(SecretUri=https://', parameters('keyVaultName'), '.vault.azure.net/secrets/StorageConnectionString/)')]",
+				"StorageConnectionString": "[concat('@Microsoft.KeyVault(SecretUri=https://', parameters('keyVaultName'), '.vault.azure.net/secrets/StorageConnectionString/)')]",
+				"FUNCTIONS_WORKER_RUNTIME": "dotnet",
+				"WEBSITE_CONTENTAZUREFILECONNECTIONSTRING": "[concat('@Microsoft.KeyVault(SecretUri=https://', parameters('keyVaultName'), '.vault.azure.net/secrets/StorageConnectionString/)')]",
+				"WEBSITE_CONTENTSHARE": "[parameters('docAppFuncName')]",
+				"APPINSIGHTS_INSTRUMENTATIONKEY": "[reference(resourceId('microsoft.insights/components', parameters('docFuncAppInsightsName')), '2020-02-02-preview').InstrumentationKey]"
+			}
+		},
+		{
+			"type": "microsoft.insights/components",
+			"apiVersion": "2020-02-02-preview",
+			"name": "[parameters('docFuncAppInsightsName')]",
+			"kind": "",
+			"location": "[resourceGroup().location]",
+			"tags": {
+				"[concat('hidden-link:', resourceId('Microsoft.Web/sites', parameters('docFuncAppInsightsName')))]": "Resource",
+				"product": "Lexis Omni"
+			},
+			"properties": {
+				"ApplicationId": "[parameters('docFuncAppInsightsName')]",
+				"Application_Type": "web"
+			}
+		},
+		{
+			"type": "Microsoft.Web/sites/functions",
+			"apiVersion": "2018-11-01",
+			"name": "[concat(parameters('docAppFuncName'), '/DocumentAssembly')]",
+			"location": "[resourceGroup().location]",
+			"dependsOn": [
+				"[resourceId('Microsoft.Web/sites', parameters('docAppFuncName'))]"
+			],
+			"properties": {
+				"script_root_path_href": "[concat('https://', parameters('docAppFuncName'), '.azurewebsites.net/admin/vfs/site/wwwroot/DocumentAssembly/')]",
+				"script_href": "[concat('https://', parameters('docAppFuncName'), '.azurewebsites.net/admin/vfs/site/wwwroot/bin/LexisNexis.Omni.Everyfile.Functions.DocumentHandling.dll')]",
+				"config_href": "[concat('https://', parameters('docAppFuncName'), '.azurewebsites.net/admin/vfs/site/wwwroot/DocumentAssembly/function.json')]",
+				"href": "[concat('https://', parameters('docAppFuncName'), '.azurewebsites.net/admin/functions/DocumentAssembly')]",
+				"config": {}
+			}
+		},
+		{
+			"type": "Microsoft.Web/sites/hostNameBindings",
+			"apiVersion": "2018-11-01",
+			"name": "[concat(parameters('docAppFuncName'), '/', parameters('docAppFuncName'), '.azurewebsites.net')]",
+			"location": "[resourceGroup().location]",
+			"dependsOn": [
+				"[resourceId('Microsoft.Web/sites', parameters('docAppFuncName'))]"
+			],
+			"properties": {
+				"siteName": "[parameters('docAppFuncName')]",
+				"hostNameType": "Verified"
+			}
+		},
+		{
+			"type": "Microsoft.KeyVault/vaults/secrets",
+			"name": "[concat(parameters('keyVaultName'), '/', 'Resources--DocumentAssembly--AppKey')]",
+			"apiVersion": "2019-09-01",
+			"properties": {
+				"contentType": "text/plain",
+				"value": "[listkeys(concat(variables('docFuncAppId'), '/host/default/'),'2016-08-01').functionKeys.default]"
+			},
+			"dependsOn": [
+				"[resourceId('Microsoft.Web/sites', parameters('docAppFuncName'))]"
+			]
+		},
+		{
+			"type": "Microsoft.Resources/deployments",
+			"apiVersion": "2018-05-01",
+			"name": "DocumentFunctionAppDeploymentAccessPolicy",
+			"dependsOn": [
+				"[concat('Microsoft.Web/sites/', parameters('docAppFuncName'))]"
+			],
+			"properties": {
+				"mode": "Incremental",
+				"templateLink": {
+					"uri": "https://ngdevops.blob.core.windows.net/ngarmtemplates/v4/OmniDocFuncAP.json",
+					"contentVersion": "1.0.0.0"
+				},
+				"parameters": {
+					"docAppFuncName": {
+						"value": "[parameters('docAppFuncName')]"
+					},
+					"keyVaultName": {
+						"value": "[parameters('keyVaultName')]"
+					}
+				}
+			}
+		},
+
+		{
+			"type": "Microsoft.Storage/storageAccounts/fileServices/shares",
+			"apiVersion": "2019-04-01",
+			"name": "[concat(parameters('storageAccountName'), '/default/templates')]",
+			"properties": {
+				"accessTier": "Hot",
+				"shareQuota": 5,
+				"enabledProtocols": "SMB"
+			}
+		}
+	],
+	"outputs": {
+		"DocFuncAppEndpoint": {
+			"type": "string",
+			"value": "[concat('https://', reference(concat('Microsoft.Web/sites/', parameters('docAppFuncName'))).defaultHostName)]"
+		}
+	}
+}

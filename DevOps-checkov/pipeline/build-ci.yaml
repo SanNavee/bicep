@@ -1,0 +1,105 @@
+name: Bicep Deployment
+
+variables:
+  templateFile: './Deploy/main.bicep'
+  
+pool:
+  vmImage: 'windows-latest'
+
+stages:
+  - stage: 'Deploy'
+    displayName: Precheck deploy to Dev
+    jobs:
+    - deployment: PrepareForDeployment
+      environment: BicepDeployment
+      strategy:
+         runOnce:
+          deploy:
+            steps:
+            - checkout: self
+
+            - task: AzureCLI@2
+              displayName: What-IF
+              inputs:
+                azureSubscription: 'LN VF Ng'
+                scriptType: ps
+                scriptLocation: inlineScript
+                inlineScript: |
+                  az --version
+                  az deployment group create --resource-group $(rgname) --template-file $(templateFile) `
+                  --parameters environmentName=$(environmentName) `
+                  azureAdminObjectId=$(azureAdminObjectId) `
+                  locationAbbreviation=$(locationAbbreviation) `
+                  instance=$(instance) `
+                  appServicePlanSKUName=$(appServicePlanSKUName) `
+                  functionAppServiceSKU=$(functionAppServiceSKU) `
+                  externalStorageConnectionString=$(externalStorageConnectionString) `
+                  fileShareName=$(fileShareName) `
+                  omniCoreApiClientId=$(omniCoreApiClientId) `
+                  omniCoreApiHybridConnectionHost=$(omniCoreApiHybridConnectionHost) `
+                  omniCoreApiHybridConnectionPort=$(omniCoreApiHybridConnectionPort) `
+                  omniCoreApiResourceIdentifier=$(omniCoreApiResourceIdentifier) `
+                  everyFileClientId=$(everyFileClientId) `
+                  everyFileClientSecret=$(everyFileClientSecret) `
+                  iManageClientCodeField=$(iManageClientCodeField) `
+                  iManageEndpoint=$(iManageEndpoint) `
+                  iManageEveryfileClientId=$(iManageEveryfileClientId) `
+                  iManageEveryfileClientSecret=$(iManageEveryfileClientSecret) `
+                  iManageMatterCodeField=$(iManageMatterCodeField) `
+                  msGraphVersion=$(msGraphVersion) `
+                  omniAppsDomainName=$(omniAppsDomainName) `
+                  configureIManage=$(configureIManage) `
+                  configurePowerBI=$(configurePowerBI) `
+                  --what-if
+
+    - job: waitForValidation
+      dependsOn: PrepareForDeployment
+      displayName: wait for external validation
+      pool: server
+      steps:
+        - task: ManualValidation@0
+          inputs:
+            notifyUsers: 'katta.dhruva@lexisnexis.com'
+            instructions: 'Validate Deployment'
+            
+    - deployment: DeployToAzure
+      dependsOn: waitForValidation
+      environment: BicepDeployment
+      strategy:
+         runOnce:
+          deploy:
+            steps:
+            - checkout: self
+
+            - task: AzureCLI@2
+              displayName: Azure Resources Deployment
+              inputs:
+                azureSubscription: 'LN VF Ng'
+                scriptType: ps
+                scriptLocation: inlineScript
+                inlineScript: |
+                  az --version
+                  az deployment group create --resource-group $(rgname) --template-file $(templateFile) `
+                  --parameters environmentName=$(environmentName) `
+                  azureAdminObjectId=$(azureAdminObjectId) `
+                  locationAbbreviation=$(locationAbbreviation) `
+                  instance=$(instance) `
+                  appServicePlanSKUName=$(appServicePlanSKUName) `
+                  functionAppServiceSKU=$(functionAppServiceSKU) `
+                  externalStorageConnectionString=$(externalStorageConnectionString) `
+                  fileShareName=$(fileShareName) `
+                  omniCoreApiClientId=$(omniCoreApiClientId) `
+                  omniCoreApiHybridConnectionHost=$(omniCoreApiHybridConnectionHost) `
+                  omniCoreApiHybridConnectionPort=$(omniCoreApiHybridConnectionPort) `
+                  omniCoreApiResourceIdentifier=$(omniCoreApiResourceIdentifier) `
+                  everyFileClientId=$(everyFileClientId) `
+                  everyFileClientSecret=$(everyFileClientSecret) `
+                  iManageClientCodeField=$(iManageClientCodeField) `
+                  iManageEndpoint=$(iManageEndpoint) `
+                  iManageEveryfileClientId=$(iManageEveryfileClientId) `
+                  iManageEveryfileClientSecret=$(iManageEveryfileClientSecret) `
+                  iManageMatterCodeField=$(iManageMatterCodeField) `
+                  msGraphVersion=$(msGraphVersion) `
+                  omniAppsDomainName=$(omniAppsDomainName) `
+                  configureIManage=$(configureIManage) `
+                  configurePowerBI=$(configurePowerBI)

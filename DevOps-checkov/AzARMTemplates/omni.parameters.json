@@ -1,0 +1,72 @@
+{
+	"$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"environmentName": {
+			"value": "env1"
+		},
+		"locationAbbreviation": {
+			"value": "uks"
+		},
+		"instance": {
+			"value": "001"
+		},
+		"skuName": {
+			"value": "B1"
+		},
+		"skuCapacity": {
+			"value": 1
+		},
+		"omniAppsStorageType": {
+			"value": "Standard_LRS"
+		},
+		"omniAppsDomainName": {
+			"value": "visualfilesdevelopment.onmicrosoft.com"
+		},
+		"everyFileClientId": {
+			"value": "-"
+		},
+		"everyFileClientSecret": {
+			"value": "-"
+		},
+		"omniCoreApiClientId": {
+			"value": "-"
+		},
+		"omniCoreApiResourceIdentifier": {
+			"value": "-"
+		},
+		"omniCoreApiHybridConnectionHost": {
+			"value": "-"
+		},
+		"omniCoreApiHybridConnectionPort": {
+			"value": 0
+		},
+		"azureAdminObjectId": {
+			"value": "-"
+		},
+		"msGraphVersion": {
+			"value": "beta"
+		},
+		"configurePowerBI": {
+			"value": true
+		},
+		"configureIManage": {
+			"value": true
+		},
+		"iManageEndpoint": {
+			"value": "https://imanagecloud.co.uk"
+		},
+		"iManageClientCodeField": {
+			"value": "ER01"
+		},
+		"iManageMatterCodeField": {
+			"value": "MT05"
+		},
+		"iManageEveryfileClientId": {
+			"value": "-"
+		},
+		"iManageEveryfileClientSecret": {
+			"value": "-"
+		}
+	}
+}
